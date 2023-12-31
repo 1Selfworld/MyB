@@ -4,12 +4,15 @@
     "@nomicfoundation/hardhat-toolbox": "^1.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.1.0",
     "@openzeppelin/hardhat-upgrades": "^1.21.0",
-    "hardhat": "^2.12.0"
+    "hardhat": "^2.19.4"
   },
   "scripts": {
     "test": "npx hardhat test",
     "compile": "npx hardhat compile",
     "deploy": "npx hardhat run scripts/deploy.js",
+    "deploy:testnet": "npx hardhat run scripts/deploy.js --network wemix_testnet",
+    "reward:testnet": "npx hardhat run scripts/reward.js --network wemix_testnet",
+    "transfer:testnet": "npx hardhat run scripts/transfer.js --network wemix_testnet",
     "verify": "npx hardhat verify"
   },
   "dependencies": {

@@ -2,7 +2,7 @@
 
 ## Soulbound Token
 
-Solidity Implementation of the Soulbound Token.
+Implementation of the Soulbound Token.
 
 ## Problem Trying to Solve
 
@@ -84,9 +84,10 @@ const PRIVATE_KEY = "PRIVATE KEY";
 - Deploy and verify:
 
 ```sh
-npm run deploy --network wemix_testnet
+npx hardhat run scripts/deploy.js --network wemix_testnet
 
-npm run verify --network wemix_testnet <DEPLOYED_CONTRACT_ADDRESS>
+npx hardhat verify --network wemix_testnet <DEPLOYED_CONTRACT_ADDRESS> https://ipfs.io/ipfs/token.data
+
 ```
 
 Adjust the parameters and paths based on your specific setup and deployment requirements.

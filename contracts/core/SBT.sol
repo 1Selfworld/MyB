@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: CC0-1.0
+//SPDX-License-Identifier: MIT
 
 /**
  * @notice Reference implementation of the eip-5516 interface.
@@ -7,7 +7,7 @@
  *
  */
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.23;
 
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
@@ -253,11 +253,17 @@ contract SBT is Context, ERC165, IERC1155, IERC1155MetadataURI, IERC5516 {
     {
         return _operatorApprovals[account][operator];
     }
-
     /**
-     * @dev reward(creates) a token
+     * @dev Reward the specified account with reward data.
+     *
+     * This function allows the contract owner or an authorized entity to reward an account
+     * by providing some additional data.
+     *
+     * @param account The address of the account to be rewarded.
+     * @param data Additional data associated with the reward.
      */
-    function reward(address account, string memory data) internal virtual {
+
+    function reward(address account, string memory data) external virtual {
         unchecked {
             ++nonce;
         }
@@ -314,28 +320,28 @@ contract SBT is Context, ERC165, IERC1155, IERC1155MetadataURI, IERC5516 {
     }
 
     /**
-     * @dev See {eip-5516-batchTransfer}
-     *
-     * Requirements:
-     *
-     * - 'from' must be the creator(minter) of `id` or must have allowed _msgSender() as an operator.
-     *
+     * @dev See {IERC1155-safeBatchTransferFrom}.
      */
-    function batchTransfer(
+    function safeBatchTransferFrom(
         address from,
-        address[] memory to,
-        uint256 id,
-        uint256 amount,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
         bytes memory data
-    ) external virtual override {
-        require(amount == 1, "EIP5516: Can only transfer one token");
-        require(
-            _msgSender() == _tokenMinters[id] ||
-                isApprovedForAll(_tokenMinters[id], _msgSender()),
-            "EIP5516: Unauthorized"
-        );
+    ) public virtual override {
 
-        _batchTransfer(from, to, id, amount, data);
+        require(ids.length == amounts.length, "EIP5516: Arrays length mismatch");
+        
+        for (uint256 i = 0; i < ids.length; i++) {
+            require(amounts[i] == 1, "EIP5516: Can only transfer one token");
+            require(
+                _msgSender() == _tokenMinters[ids[i]] ||
+                    isApprovedForAll(_tokenMinters[ids[i]], _msgSender()),
+                "EIP5516: Unauthorized"
+            );
+        }
+        _safeBatchTransferFrom(from,to,ids,amounts,data);
+
     }
 
     /**
@@ -381,44 +387,51 @@ contract SBT is Context, ERC165, IERC1155, IERC1155MetadataURI, IERC5516 {
         _doSafeTransferAcceptanceCheck(operator, from, to, id, amount, data);
     }
 
+
     /**
-     * Transfers `id` token from `from` to every address at `to[]`.
+     * @dev Transfers `amount` tokens of token type `id` from `from` to `to`.
+     *
+     * Emits a {TransferSingle} event.
      *
      * Requirements:
-     * - See {eip-5516-safeMultiTransfer}.
+     *
+     * - `from` must be the creator(minter) of the token under `id`.
+     * - `to` must be non-zero.
+     * - `to` must have the token `id` marked as _pendings.
+     * - `to` must not own a token type under `id`.
+     * - If `to` refers to a smart contract, it must implement {IERC1155Receiver-onERC1155Received} and return the
+     *   acceptance magic value.
      *
      */
-    function _batchTransfer(
+    function _safeBatchTransferFrom(
         address from,
-        address[] memory to,
-        uint256 id,
-        uint256 amount,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
         bytes memory data
     ) internal virtual {
-        address operator = _msgSender();
-
-        _beforeBatchedTokenTransfer(operator, from, to, id, data);
-
-        for (uint256 i = 0; i < to.length; ) {
-            address _to = to[i];
-
-            require(_to != address(0), "EIP5516: Address zero error");
+        require(from != address(0), "EIP5516: Address zero error");
+        
+        for (uint256 i = 0; i < ids.length; i++) {
             require(
-                _pendings[_to][id] == false && _balances[_to][id] == false,
+                _pendings[to][ids[i]] == false && _balances[to][ids[i]] == false,
                 "EIP5516: Already Assignee"
             );
-
-            _pendings[_to][id] = true;
-
-            unchecked {
-                ++i;
-            }
         }
 
-        emit TransferMulti(operator, from, to, amount, id);
+        address operator = _msgSender();
+        _beforeTokenTransfer(operator, from, to, ids, amounts, data);
 
-        _beforeBatchedTokenTransfer(operator, from, to, id, data);
+        for (uint256 j = 0; j < ids.length; j++ ){
+            _pendings[to][ids[j]] = true;
+        }
+
+        emit TransferBatch(operator, from, to, ids, amounts);
+        _afterTokenTransfer(operator, from, to, ids, amounts, data);
+        _doSafeBatchTransferAcceptanceCheck(operator, from, to, ids, amounts, data);
     }
+
+
 
 
     /**
@@ -788,15 +801,41 @@ contract SBT is Context, ERC165, IERC1155, IERC1155MetadataURI, IERC5516 {
         }
     }
 
+
     /**
-     * @dev Unused/Deprecated function
-     * @dev See {IERC1155-safeBatchTransferFrom}.
+     * @dev Performs a batch acceptance check by calling {IERC1155-onERC1155BatchReceived} on the `to` address
+     * if it contains code at the moment of execution.
      */
-    function safeBatchTransferFrom(
+    function _doSafeBatchTransferAcceptanceCheck(
+        address operator,
         address from,
         address to,
         uint256[] memory ids,
-        uint256[] memory amounts,
+        uint256[] memory values,
         bytes memory data
-    ) public virtual override {}
+    ) private {
+        
+        require(msg.sender == tx.origin);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            try
+                IERC1155Receiver(to).onERC1155BatchReceived(
+                    operator,
+                    from,
+                    ids,
+                    values,
+                    data
+                )
+            returns (bytes4 response) {
+                if (response != IERC1155Receiver.onERC1155BatchReceived.selector) {
+                    revert("ERC1155: ERC1155Receiver rejected batch of tokens");
+                }
+            } catch Error(string memory reason) {
+                revert(reason);
+            } catch {
+                revert("ERC1155: transfer to non-ERC1155Receiver implementer");
+            }
+        }
+
+    }    
 }

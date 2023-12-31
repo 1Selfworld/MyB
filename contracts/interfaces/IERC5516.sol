@@ -1,6 +1,6 @@
-// SPDX-License-Identifier: CC0-1.0
+// SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.23;
 
 /**
     @title Soulbound, Multi-Token standard.
@@ -70,25 +70,4 @@ interface IERC5516 {
         uint256[] memory ids
     ) external;
 
-    /**
-     * @dev Transfers `id` token from `from` to every address at `to[]`.
-     *
-     * Requirements:
-     *
-     * - `from` MUST be the creator(minter) of `id`.
-     * - All addresses in `to[]` MUST be non-zero.
-     * - All addresses in `to[]` MUST have the token `id` under `_pendings`.
-     * - All addresses in `to[]` MUST not own a token type under `id`.
-     *
-     * Emits a {TransfersMulti} event.
-     *
-     */
-    function batchTransfer(
-        address from,
-        address[] memory to,
-        uint256 id,
-        uint256 amount,
-        bytes memory data
-    ) external;
-    
 }
